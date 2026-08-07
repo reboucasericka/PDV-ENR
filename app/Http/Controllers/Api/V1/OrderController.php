@@ -7,6 +7,7 @@ use App\Http\Requests\AddItemRequest;
 use App\Http\Requests\StoreOrderRequest;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
+use InvalidArgumentException;
 
 class OrderController extends Controller
 {
@@ -24,7 +25,13 @@ class OrderController extends Controller
 
     public function store(StoreOrderRequest $request): JsonResponse
     {
-        $order = $this->orderService->createOrder($request->validated());
+        try {
+            $order = $this->orderService->createOrder($request->validated());
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Order created successfully.',
@@ -49,7 +56,13 @@ class OrderController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $order = $this->orderService->getOrderDetails($id);
+        try {
+            $order = $this->orderService->getOrderDetails($id);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $exception) {
+            return response()->json([
+                'message' => 'Pedido nao encontrado.',
+            ], 404);
+        }
 
         return response()->json([
             'message' => 'Order details fetched successfully.',
