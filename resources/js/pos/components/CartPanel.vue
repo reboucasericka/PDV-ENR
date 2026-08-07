@@ -1,74 +1,79 @@
 <template>
   <aside class="flex h-full flex-col rounded-2xl border-0 bg-white p-4 shadow-2xl md:p-6">
-    <div class="flex items-end justify-between">
+    <div class="mb-3 flex items-center justify-between gap-2">
       <h2 class="text-xl font-bold text-slate-900 md:text-2xl">Carrinho</h2>
-      <p class="text-xs text-gray-400">Itens: {{ cart.length }}</p>
+      <button
+        type="button"
+        class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+        :disabled="cart.length === 0 || processing"
+        @click="$emit('cancel-sale')"
+      >
+        Cancelar venda
+      </button>
     </div>
 
-    <div class="mt-4 flex-1 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <div v-if="cart.length === 0" class="py-6 text-center text-slate-500">
-        Sem itens no carrinho.
+    <CartSummary
+      :items-count="itemsCount"
+      :units-count="unitsCount"
+      :total="total"
+    />
+
+    <div class="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div v-if="cart.length === 0" class="py-2">
+        <EmptyState
+          title="Carrinho vazio"
+          description="Toque num produto para adicionar à venda."
+          icon="🛒"
+        />
       </div>
 
-      <div
+      <CartItem
         v-for="item in cart"
         :key="item.id"
-        class="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm shadow-sm"
-      >
-        <div>
-          <p class="font-semibold text-slate-800">{{ item.name }}</p>
-          <p class="text-slate-500">€{{ item.price.toFixed(2) }} x {{ item.quantity }}</p>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <span class="text-base font-bold text-slate-900">€{{ (item.price * item.quantity).toFixed(2) }}</span>
-          <button
-            type="button"
-            class="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100"
-            @click="$emit('decrease-item', item.id)"
-          >
-            -
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <p class="text-xs font-semibold uppercase text-slate-500">Teclado numerico (valor recebido)</p>
-      <div class="rounded-lg bg-white p-3 text-right text-2xl font-extrabold text-slate-900 shadow-sm">
-        €{{ receivedAmount.toFixed(2) }}
-      </div>
-      <div class="grid grid-cols-3 gap-2">
-        <button
-          v-for="key in keypadKeys"
-          :key="key.label"
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white py-3 text-lg font-bold text-slate-800 hover:bg-slate-100"
-          @click="$emit('keypad-press', key)"
-        >
-          {{ key.label }}
-        </button>
-      </div>
+        :item="item"
+        :selected="selectedItemId === item.id"
+        @select="$emit('select-item', $event)"
+        @increase="$emit('increase-item', $event)"
+        @decrease="$emit('decrease-item', $event)"
+        @remove="$emit('remove-item', $event)"
+        @set-quantity="(id, qty) => $emit('set-quantity', id, qty)"
+      />
     </div>
 
     <div class="mt-4 rounded-xl bg-slate-900 p-4 text-white">
       <p class="text-sm uppercase text-slate-300">Total</p>
       <p class="text-4xl font-black tracking-tight">€{{ total.toFixed(2) }}</p>
-      <p class="mt-1 text-sm text-slate-300">Troco: €{{ change.toFixed(2) }}</p>
+    </div>
+
+    <div class="mt-4">
+      <PaymentPanel
+        :payment-method="paymentMethod"
+        :payment-methods="paymentMethods"
+        :received-amount="receivedAmount"
+        :change="change"
+        :keypad-keys="keypadKeys"
+        @update:payment-method="$emit('update:payment-method', $event)"
+        @keypad-press="$emit('keypad-press', $event)"
+      />
     </div>
 
     <button
       type="button"
       :disabled="!canPay"
-      class="mt-4 w-full scale-[1.02] rounded-xl bg-green-600 py-4 text-xl font-black text-white shadow-xl transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+      class="mt-4 w-full scale-[1.02] rounded-xl bg-green-600 py-4 text-xl font-black text-white shadow-xl transition hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 disabled:cursor-not-allowed disabled:bg-slate-400"
       @click="$emit('pay')"
     >
-      {{ processing ? 'Processando...' : 'Pagar (Enter)' }}
+      {{ processing ? 'Processando...' : 'Finalizar venda' }}
     </button>
   </aside>
 </template>
 
 <script setup>
+import CartItem from './CartItem.vue';
+import CartSummary from './CartSummary.vue';
+import PaymentPanel from './PaymentPanel.vue';
+import EmptyState from './ui/EmptyState.vue';
+
 defineProps({
   cart: { type: Array, required: true },
   receivedAmount: { type: Number, required: true },
@@ -77,7 +82,22 @@ defineProps({
   keypadKeys: { type: Array, required: true },
   canPay: { type: Boolean, required: true },
   processing: { type: Boolean, required: true },
+  paymentMethod: { type: String, default: 'cash' },
+  paymentMethods: { type: Array, required: true },
+  itemsCount: { type: Number, required: true },
+  unitsCount: { type: Number, required: true },
+  selectedItemId: { type: [Number, String], default: null },
 });
 
-defineEmits(['decrease-item', 'keypad-press', 'pay']);
+defineEmits([
+  'decrease-item',
+  'increase-item',
+  'remove-item',
+  'set-quantity',
+  'select-item',
+  'keypad-press',
+  'pay',
+  'cancel-sale',
+  'update:payment-method',
+]);
 </script>
