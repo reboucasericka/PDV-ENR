@@ -13,7 +13,18 @@
       </div>
 
       <main class="min-w-0 flex-1">
-        <OpenCashPanel v-if="!cashOpen" :opening="openingCash" @open-cash="openCashRegister" />
+        <SelectStoreModal
+          v-if="!selectedStoreId"
+          :stores="stores"
+          :selecting="selectingStore"
+          @select-store="onStoreSelected"
+        />
+
+        <OpenCashPanel
+          v-else-if="!cashOpen"
+          :opening="openingCash"
+          @open-cash="openCashRegister"
+        />
 
         <div
           v-else-if="activeMenu === 'vendas'"
@@ -79,16 +90,28 @@ import OpenCashPanel from '../components/OpenCashPanel.vue';
 import PosSidebar from '../components/PosSidebar.vue';
 import PosTopbar from '../components/PosTopbar.vue';
 import ProductGrid from '../components/ProductGrid.vue';
+import SelectStoreModal from '../components/SelectStoreModal.vue';
 
 const products = ref([]);
 const cart = ref([]);
 const processing = ref(false);
 const openingCash = ref(false);
+const selectingStore = ref(false);
 const cashDigits = ref('0');
 const audioContext = ref(null);
 const cashOpen = ref(false);
+const selectedStoreId = ref(null);
 const activeMenu = ref('caixa');
 const clickedProductIds = ref(new Set());
+
+// Lista temporária até a Etapa 2 (API + seeder de stores).
+const stores = ref([
+  { id: 1, name: 'Dona Joana Centro', city: 'Lisboa', state: 'Lisboa', is_active: true },
+  { id: 2, name: 'Dona Joana Norte', city: 'Porto', state: 'Porto', is_active: true },
+  { id: 3, name: 'Dona Joana Sul', city: 'Faro', state: 'Faro', is_active: true },
+  { id: 4, name: 'Dona Joana Oriente', city: 'Coimbra', state: 'Coimbra', is_active: true },
+  { id: 5, name: 'Dona Joana Parque', city: 'Braga', state: 'Braga', is_active: true },
+]);
 
 const appElement = document.getElementById('app');
 const operatorName = appElement?.dataset.userName || 'Operador';
@@ -319,7 +342,22 @@ async function openCashRegister() {
   }
 }
 
+function onStoreSelected(store) {
+  if (selectingStore.value || !store?.id) {
+    return;
+  }
+
+  selectingStore.value = true;
+  selectedStoreId.value = store.id;
+  selectingStore.value = false;
+}
+
 function handleMenuSelect(menu) {
+  if (!selectedStoreId.value) {
+    alert('Selecione a loja primeiro');
+    return;
+  }
+
   if (!cashOpen.value && menu !== 'caixa') {
     alert('Abra o caixa primeiro');
     return;
